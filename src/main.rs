@@ -5,7 +5,7 @@ use std::io::Read;
 
 //enum node_value
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LeafNode {
     frequency: usize,
     char: String,
@@ -19,7 +19,7 @@ fn main() {
     let mut file = fs::File::open(file_path).unwrap();
 
     let mut hash_map: HashMap<String, usize> = HashMap::new();
-    let heap: Vec<LeafNode> = Vec::new();
+    let mut heap: Vec<LeafNode> = Vec::new();
     let mut buffer: [u8; 2024] = [0; 2024];
 
     loop {
@@ -44,6 +44,46 @@ fn main() {
             Err(_) => println!("{:?}", chunk),
         }
     }
-    build_heap(&hash_map);
+    build_heap(&hash_map, &mut heap);
     //println!("{:?}", hash_map);
+}
+fn build_heap(map: &HashMap<String, usize>, heap: &mut Vec<LeafNode>) {
+    for i in map {
+        heap.push(LeafNode {
+            frequency: *i.1,
+            char: i.0.to_string(),
+            left: None,
+            right: None,
+        });
+    }
+
+    let len = heap.len();
+    let mut i = (len / 2) as isize - 1;
+
+    while i >= 0 {
+        heapify(heap, i as usize, len);
+        if i == 0 {
+            break;
+        }
+        i -= 1;
+    }
+}
+
+fn heapify(heap: &mut Vec<LeafNode>, node_idx: usize, n: usize) {
+    let left = (node_idx * 2) + 1;
+    let right = (node_idx * 2) + 2;
+    let mut smallest = node_idx;
+
+    if left < n && heap[left].frequency < heap[smallest].frequency {
+        smallest = left;
+    }
+
+    if right < n && heap[right].frequency < heap[smallest].frequency {
+        smallest = right;
+    }
+
+    if smallest != node_idx {
+        heap.swap(node_idx, smallest);
+        heapify(heap, smallest, n);
+    }
 }
