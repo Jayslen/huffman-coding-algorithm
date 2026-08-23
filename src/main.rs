@@ -3,7 +3,8 @@ use std::env;
 use std::fs;
 use std::io::Read;
 
-//enum node_value
+use std::collections::VecDeque;
+use std::os::unix::fs::MetadataExt;
 
 #[derive(Debug, Clone)]
 struct LeafNode {
@@ -18,16 +19,26 @@ fn main() {
     let file_path = &args[1];
     let mut file = fs::File::open(file_path).unwrap();
 
+    // 1. Hashmap to track chars' frecuency
     let mut hash_map: HashMap<String, usize> = HashMap::new();
-    let mut heap: Vec<LeafNode> = Vec::new();
-    let mut buffer: [u8; 2024] = [0; 2024];
+
+    let mut buffer: [u8; 20480] = [0; 20480];
+
+    let size = fs::metadata(file_path).unwrap().size();
+    let mut total: usize = 0;
 
     loop {
         let bytes_read = file.read(&mut buffer).unwrap();
         if bytes_read == 0 {
             break;
         }
+
+        total += bytes_read;
         let chunk = &buffer[..bytes_read];
+
+        print!("\rRead {} of {:?}", total, size);
+
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         match std::str::from_utf8(chunk) {
             Ok(text) => {
@@ -47,12 +58,21 @@ fn main() {
             Err(_) => println!("{:?}", chunk),
         }
     }
-    build_heap(&hash_map, &mut heap);
-    build_tree(&mut heap);
-    println!("{:#?}", heap);
+
+    let mut prefixes: Vec<String> = Vec::new();
+    let mut curr_prefix = String::new();
+    let heap = build_heap(&hash_map);
+
+    // here we moved the the value of heap into this variable
+    // i decided to do this beacues it makes sense since we are builind a tree from the min-heap
+    let mut tree = build_tree(heap);
+
+    transverse(&mut tree[0], &mut prefixes, &mut curr_prefix);
 }
 
-fn build_heap(map: &HashMap<String, usize>, heap: &mut Vec<LeafNode>) {
+fn build_heap(map: &HashMap<String, usize>) -> Vec<LeafNode> {
+    let mut heap: Vec<LeafNode> = Vec::new();
+
     for i in map {
         heap.push(LeafNode {
             frequency: *i.1,
@@ -66,12 +86,14 @@ fn build_heap(map: &HashMap<String, usize>, heap: &mut Vec<LeafNode>) {
     let mut i = (len / 2) as isize - 1;
 
     while i >= 0 {
-        heapify(heap, i as usize, len);
+        heapify(&mut heap, i as usize, len);
         if i == 0 {
             break;
         }
         i -= 1;
     }
+
+    heap
 }
 
 fn heapify(heap: &mut Vec<LeafNode>, node_idx: usize, n: usize) {
@@ -93,7 +115,7 @@ fn heapify(heap: &mut Vec<LeafNode>, node_idx: usize, n: usize) {
     }
 }
 
-fn build_tree(heap: &mut Vec<LeafNode>) {
+fn build_tree(mut heap: Vec<LeafNode>) -> Vec<LeafNode> {
     while heap.len() > 1 {
         let root = heap[0].clone();
         let smallest = if heap.len() == 2 {
@@ -106,8 +128,8 @@ fn build_tree(heap: &mut Vec<LeafNode>) {
 
         let second = heap[smallest].clone();
 
-        delete(heap, &root.char);
-        delete(heap, &second.char);
+        delete(&mut heap, &root.char);
+        delete(&mut heap, &second.char);
 
         let internal_node = LeafNode {
             frequency: root.frequency + second.frequency,
@@ -117,7 +139,6 @@ fn build_tree(heap: &mut Vec<LeafNode>) {
         };
 
         heap.push(internal_node);
-
         // Loop
         // Identify first 2
         // Sume them and add them to the heap
@@ -126,26 +147,73 @@ fn build_tree(heap: &mut Vec<LeafNode>) {
         // Repeat until there is only 1 node left in the heap
         //
     }
+    heap
+}
 
-    fn delete(heap: &mut Vec<LeafNode>, value: &String) {
-        // Find index of value to be deleted
-        let mut index: i32 = -1;
-        for i in 0..heap.len() {
-            if heap[i].char == *value {
-                index = i as i32;
-                break;
+fn delete(heap: &mut Vec<LeafNode>, value: &String) {
+    // Find index of value to be deleted
+    let mut index: i32 = -1;
+    for i in 0..heap.len() {
+        if heap[i].char == *value {
+            index = i as i32;
+            break;
+        }
+    }
+
+    if index == -1 {
+        return;
+    }
+
+    let len = heap.len() - 1;
+
+    heap.swap(index as usize, len);
+    heap.pop();
+
+    heapify(heap, index as usize, len);
+}
+
+fn level_trasverse(tree: &mut LeafNode) {
+    let mut queqe: VecDeque<&LeafNode> = VecDeque::new();
+    let mut result: Vec<Vec<usize>> = Vec::new();
+    queqe.push_back(tree);
+    let mut level = 0;
+
+    while queqe.len() > 0 {
+        result.push(Vec::new());
+
+        for _ in 0..queqe.len() {
+            let curr_node = queqe.pop_front().unwrap();
+            result[level].push(curr_node.frequency);
+
+            if let Some(node) = curr_node.left.as_ref() {
+                queqe.push_back(node);
+            }
+
+            if let Some(node) = curr_node.right.as_ref() {
+                queqe.push_back(node);
             }
         }
+        level += 1;
+    }
 
-        if index == -1 {
-            return;
-        }
+    println!("{:?}", result)
+}
 
-        let len = heap.len() - 1;
+fn transverse(tree: &LeafNode, arr: &mut Vec<String>, curr: &mut String) {
+    if tree.left.is_none() && tree.right.is_none() {
+        let value = curr.clone();
+        arr.push(value);
+    }
 
-        heap.swap(index as usize, len);
-        heap.pop();
+    if let Some(node) = tree.left.as_ref() {
+        curr.push('0');
+        transverse(node, arr, curr);
+        curr.pop();
+    }
 
-        heapify(heap, index as usize, len);
+    if let Some(node) = tree.right.as_ref() {
+        curr.push('1');
+        transverse(node, arr, curr);
+        curr.pop();
     }
 }
