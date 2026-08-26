@@ -28,7 +28,7 @@ pub fn compress(file_path: &str, file: &mut File) {
         total += bytes_read;
         let chunk = &buffer[..bytes_read];
 
-        print!("\rRead {} of {:?}", total, size);
+        //        print!("\rRead {} of {:?}", total, size);
 
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
@@ -62,5 +62,37 @@ pub fn compress(file_path: &str, file: &mut File) {
 
     transverse(&mut tree[0], &mut prefixes, &mut curr_prefix);
     //println!("{:#?}", tree);
-    println!("Prefixes: {:#?}", prefixes);
+    prepare_result(&prefixes);
+}
+
+fn prepare_result(result: &Vec<String>) {
+    let mut bytes: Vec<u8> = Vec::new();
+    let codes = result.clone().join("");
+
+    println!("codes: {}", codes);
+    let mut codes_iter = codes.chars();
+
+    let bytes_need = codes.len() / 8 + if codes.len() % 8 > 0 { 1 } else { 0 };
+    println!("\n");
+    for _ in 0..bytes_need {
+        let mut pack: u8 = 0;
+        for j in (0..8).rev() {
+            // println!("j: {}", j);
+            // println!("pack {:08b}", pack);
+            if let Some(value) = codes_iter.next() {
+                // println!("value: {}", value);
+                let mut byte = value.to_string().parse::<u8>().unwrap();
+                byte = byte << j;
+                // println!("c: {:08b}", c);
+                pack |= byte;
+                //println!("pack: {:08b}", pack);
+            } else {
+                break;
+            }
+        }
+        bytes.push(pack);
+    }
+
+    fs::write("output", &bytes).expect("Unable to write file");
+    bytes.iter().for_each(|f| println!("{:08b}", f));
 }
