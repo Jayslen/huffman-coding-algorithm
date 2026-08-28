@@ -1,6 +1,37 @@
-use crate::{LeafNode, encode::utils::delete};
+use std::collections::HashMap;
 
-pub fn build_tree(mut heap: Vec<LeafNode>) -> Vec<LeafNode> {
+use crate::{
+    LeafNode, MinHeap, Tree,
+    encode::utils::{delete, heapify},
+};
+
+pub fn build_heap(map: &HashMap<String, usize>) -> MinHeap {
+    let mut heap: MinHeap = Vec::new();
+
+    for i in map {
+        heap.push(LeafNode {
+            frequency: *i.1,
+            char: i.0.to_string(),
+            left: None,
+            right: None,
+        });
+    }
+
+    let len = heap.len();
+    // find the last non-leaf node
+    let mut i = (len / 2) as isize - 1;
+
+    while i >= 0 {
+        heapify(&mut heap, i as usize, len);
+        if i == 0 {
+            break;
+        }
+        i -= 1;
+    }
+    heap
+}
+
+pub fn build_tree(mut heap: MinHeap) -> Tree {
     while heap.len() > 1 {
         //println!("Current Heap{:#?}", heap);
         let root = heap[0].clone();
@@ -30,24 +61,7 @@ pub fn build_tree(mut heap: Vec<LeafNode>) -> Vec<LeafNode> {
 
         heap.push(internal_node);
     }
-    heap
-}
-
-pub fn transverse(tree: &LeafNode, arr: &mut Vec<String>, curr: &mut String) {
-    if tree.left.is_none() && tree.right.is_none() {
-        let value = curr.clone();
-        arr.push(value);
-    }
-
-    if let Some(node) = tree.left.as_ref() {
-        curr.push('0');
-        transverse(node, arr, curr);
-        curr.pop();
-    }
-
-    if let Some(node) = tree.right.as_ref() {
-        curr.push('1');
-        transverse(node, arr, curr);
-        curr.pop();
-    }
+    let tree = heap[0].clone();
+    drop(heap);
+    tree
 }

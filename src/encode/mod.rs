@@ -1,5 +1,4 @@
-mod heap;
-mod tree;
+mod data_str;
 mod utils;
 
 use std::collections::HashMap;
@@ -8,8 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use std::os::unix::fs::MetadataExt;
 
-use crate::encode::heap::MinHeap;
-use crate::encode::tree::{build_tree, transverse};
+use crate::encode::data_str::{build_heap, build_tree};
 
 pub fn compress(file_path: &str, file: &mut File) {
     let mut hash_map: HashMap<String, usize> = HashMap::new();
@@ -28,7 +26,7 @@ pub fn compress(file_path: &str, file: &mut File) {
         total += bytes_read;
         let chunk = &buffer[..bytes_read];
 
-        //        print!("\rRead {} of {:?}", total, size);
+        print!("\rRead {} of {:?}", total, size);
 
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
@@ -54,18 +52,26 @@ pub fn compress(file_path: &str, file: &mut File) {
     let mut prefixes: Vec<String> = Vec::new();
     let mut curr_prefix = String::new();
 
-    let heap = MinHeap::build_heap(&hash_map);
+    let heap = build_heap(&hash_map);
     // here we moved the the value of heap into this variable
-    // i decided to do this beacues it makes sense since we are builind a tree from the min-heap
+    // I decided to do this beacues it makes sense since we are builind a tree from the min-heap
+    let mut tree = build_tree(heap);
 
-    let mut tree = build_tree(heap.heap);
+    // To implement
+    //println!("tree: {:#?}", tree);
+    //preorder_transversal(&tree, &mut d);
+    //fs::write("preorder", &d).expect("Unable to write file");
+    // println!("preorder: {:#?}", d);
+    // transverse(&mut tree, &mut prefixes, &mut curr_prefix);
 
-    transverse(&mut tree[0], &mut prefixes, &mut curr_prefix);
     //println!("{:#?}", tree);
-    prepare_result(&prefixes);
+    //    fs::write("output", &result).expect("Unable to write file");
+
+    //   println!("result: {:?}", result);
+    //  println!("encoded_data: {:?}", encoded_data);
 }
 
-fn prepare_result(result: &Vec<String>) {
+fn prepare_result(result: &Vec<String>) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     let codes = result.clone().join("");
 
@@ -93,6 +99,7 @@ fn prepare_result(result: &Vec<String>) {
         bytes.push(pack);
     }
 
-    fs::write("output", &bytes).expect("Unable to write file");
-    bytes.iter().for_each(|f| println!("{:08b}", f));
+    bytes
+    //fs::write("output", &bytes).expect("Unable to write file");
+    //bytes.iter().for_each(|f| println!("{:08b}", f));
 }
