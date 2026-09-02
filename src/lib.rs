@@ -6,6 +6,9 @@ pub struct LeafNode {
     right: Option<Box<LeafNode>>,
 }
 
+pub type MinHeap = Vec<LeafNode>;
+pub type Tree = LeafNode;
+
 pub mod encode;
 
 // #[cfg(test)]
