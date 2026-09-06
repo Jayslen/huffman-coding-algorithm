@@ -9,6 +9,7 @@ pub struct LeafNode {
 pub type MinHeap = Vec<LeafNode>;
 pub type Tree = LeafNode;
 
+pub mod decode;
 pub mod encode;
 
 // #[cfg(test)]
