@@ -10,7 +10,7 @@ use std::os::unix::fs::MetadataExt;
 
 use crate::encode::{
     data_str::{build_heap, build_tree},
-    huffman::{build_encoded_data, build_tree_bytes},
+    huffman::{build_encode_tree_ouput, huffman_codes},
 };
 
 pub fn compress(file_path: &str, file: &mut File) {
@@ -54,19 +54,35 @@ pub fn compress(file_path: &str, file: &mut File) {
     }
 
     let heap = build_heap(&hash_map);
-    // here we moved the the value of heap into this variable
+    // Here we moved the the value of heap into this variable
     // I decided to do this beacues it makes sense since we are builind a tree from the min-heap
     let tree = build_tree(heap);
-
-    let mut prefixes: Vec<String> = Vec::new();
+    // println!("{:#?}", tree);
+    //println!("\n\nTree: {:#?}", tree);
+    let mut prefixes: HashMap<String, String> = HashMap::new();
     let mut curr_prefix = String::new();
 
-    build_encoded_data(&tree, &mut prefixes, &mut curr_prefix);
+    huffman_codes(&tree, &mut prefixes, &mut curr_prefix);
     drop(curr_prefix);
-
+    // println!("{:#?}", prefixes);
+    //println!("\n\nPrefixes: {:?}", prefixes);
     let mut tree_encoded: Vec<u8> = Vec::new();
-    let encoded_data = prepare_result(&prefixes);
-    build_tree_bytes(&tree, &mut tree_encoded);
+    build_encode_tree_ouput(&tree, &mut tree_encoded);
+    // println!("{:#?}", prefixes);
+    // println!("{:#?}", hash_map);
+
+    // This need to be optimized because it reads the entire file again.
+    // It just here to test the output.
+    // Later it will be improved.
+    let original_input = fs::read_to_string(file_path).expect("Unable to read file");
+    let output: Vec<String> = original_input
+        .chars()
+        .map(|c| prefixes.get(&c.to_string()).unwrap().to_string())
+        .collect();
+
+    println!("{:?}", output);
+
+    let encoded_data = pack_encoded_output(&output);
 
     let mut result: Vec<u8> = Vec::from([tree_encoded.len() as u8, encoded_data.len() as u8]);
 
@@ -77,11 +93,10 @@ pub fn compress(file_path: &str, file: &mut File) {
     for b in encoded_data.iter() {
         result.push(*b);
     }
-
     fs::write("output", &result).expect("Unable to write file");
 }
 
-fn prepare_result(result: &Vec<String>) -> Vec<u8> {
+fn pack_encoded_output(result: &Vec<String>) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     let codes = result.clone().join("");
 
@@ -109,6 +124,4 @@ fn prepare_result(result: &Vec<String>) -> Vec<u8> {
     }
 
     bytes
-    //fs::write("output", &bytes).expect("Unable to write file");
-    //bytes.iter().for_each(|f| println!("{:08b}", f));
 }
