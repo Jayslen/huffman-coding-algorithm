@@ -9,11 +9,13 @@ struct LeafNode {
 }
 
 pub fn uncompress(file: &mut File) {
-    let mut sizes: [u8; 2] = [0; 2];
+    let mut sizes: [u8; 3] = [0; 3];
     file.read_exact(&mut sizes);
 
     println!("Size of tree: {}", sizes[0]);
     println!("Size of data: {}", sizes[1]);
+    println!("Size of padding: {}", sizes[2]);
+    let has_padding = sizes[2] > 0;
 
     let mut tree: Vec<u8> = vec![0; sizes[0] as usize];
 
@@ -50,10 +52,13 @@ pub fn uncompress(file: &mut File) {
     // println!("{:#?}", root);
     //
     while i < encoded_data.len() {
+        let is_last_byte = i + 1 == encoded_data.len();
         let curr_byte = encoded_data[i];
 
-        //println!("Current Byte: {:08b}", curr_byte);
         for cursor in (0..8).rev() {
+            if has_padding && is_last_byte && cursor < (sizes[2] as usize) {
+                break;
+            }
             let bit = curr_byte >> cursor & 0x01;
             // println!("{}", bit);
             if current_leaf.char != '#' {

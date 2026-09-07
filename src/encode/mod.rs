@@ -80,11 +80,14 @@ pub fn compress(file_path: &str, file: &mut File) {
         .map(|c| prefixes.get(&c.to_string()).unwrap().to_string())
         .collect();
 
-    println!("{:?}", output);
+    let mut padding_bits: u8 = 0;
+    let encoded_data = pack_encoded_output(&output, &mut padding_bits);
 
-    let encoded_data = pack_encoded_output(&output);
-
-    let mut result: Vec<u8> = Vec::from([tree_encoded.len() as u8, encoded_data.len() as u8]);
+    let mut result: Vec<u8> = Vec::from([
+        tree_encoded.len() as u8,
+        encoded_data.len() as u8,
+        padding_bits,
+    ]);
 
     for b in tree_encoded.iter() {
         result.push(*b);
@@ -96,7 +99,7 @@ pub fn compress(file_path: &str, file: &mut File) {
     fs::write("output", &result).expect("Unable to write file");
 }
 
-fn pack_encoded_output(result: &Vec<String>) -> Vec<u8> {
+fn pack_encoded_output(result: &Vec<String>, padding_bits: &mut u8) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     let codes = result.clone().join("");
 
@@ -117,6 +120,7 @@ fn pack_encoded_output(result: &Vec<String>) -> Vec<u8> {
                 pack |= byte;
                 //println!("pack: {:08b}", pack);
             } else {
+                *padding_bits = 8 - j as u8;
                 break;
             }
         }
