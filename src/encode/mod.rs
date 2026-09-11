@@ -2,11 +2,11 @@ mod data_str;
 mod huffman;
 mod utils;
 
-use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
+use std::{collections::HashMap, io::Seek};
 
 use crate::encode::{
     data_str::{build_heap, build_tree},
@@ -16,10 +16,10 @@ use crate::encode::{
 pub fn compress(file_path: &str, file: &mut File) {
     let mut hash_map: HashMap<String, usize> = HashMap::new();
 
-    let mut buffer: [u8; 20480] = [0; 20480];
+    let mut buffer: [u8; 500_024] = [0; 500_024];
 
-    let size = fs::metadata(file_path).unwrap().size();
-    let mut total: usize = 0;
+    // let size = fs::metadata(file_path).unwrap().size();
+    // let mut total: usize = 0;
 
     loop {
         let bytes_read = file.read(&mut buffer).unwrap();
@@ -27,12 +27,12 @@ pub fn compress(file_path: &str, file: &mut File) {
             break;
         }
 
-        total += bytes_read;
+        // total += bytes_read;
         let chunk = &buffer[..bytes_read];
 
-        print!("\rRead {} of {:?}", total, size);
+        // print!("\rRead {} of {:?}", total, size);
 
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        // std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         match std::str::from_utf8(chunk) {
             Ok(text) => {
@@ -68,64 +68,58 @@ pub fn compress(file_path: &str, file: &mut File) {
     //println!("\n\nPrefixes: {:?}", prefixes);
     let mut tree_encoded: Vec<u8> = Vec::new();
     build_encode_tree_ouput(&tree, &mut tree_encoded);
-    // println!("{:#?}", prefixes);
-    // println!("{:#?}", hash_map);
 
-    // This need to be optimized because it reads the entire file again.
-    // It just here to test the output.
-    // Later it will be improved.
-    let original_input = fs::read_to_string(file_path).expect("Unable to read file");
-    let output: Vec<String> = original_input
-        .chars()
-        .map(|c| prefixes.get(&c.to_string()).unwrap().to_string())
-        .collect();
+    file.seek(std::io::SeekFrom::Start(0))
+        .expect("Unable to seek file");
 
-    let mut padding_bits: u8 = 0;
-    let encoded_data = pack_encoded_output(&output, &mut padding_bits);
+    println!("\n\nEncoding file...");
 
-    let mut result: Vec<u8> = Vec::from([
-        tree_encoded.len() as u8,
-        encoded_data.len() as u8,
-        padding_bits,
-    ]);
+    let mut curr_byte: u8 = 0x0;
+    let mut curr_count: u8 = 7;
 
-    for b in tree_encoded.iter() {
-        result.push(*b);
-    }
+    let mut result: Vec<u8> = Vec::from([tree_encoded.len() as u8, 0x0, 0x0]);
+    result.extend(tree_encoded);
 
-    for b in encoded_data.iter() {
-        result.push(*b);
-    }
-    fs::write("output", &result).expect("Unable to write file");
-}
+    let mut output_file = fs::File::create_new("./output2").unwrap();
+    output_file.write(&result).expect("Unable to write file");
 
-fn pack_encoded_output(result: &Vec<String>, padding_bits: &mut u8) -> Vec<u8> {
-    let mut bytes: Vec<u8> = Vec::new();
-    let codes = result.clone().join("");
+    drop(result);
 
-    let mut codes_iter = codes.chars();
-
-    let bytes_need = codes.len() / 8 + if codes.len() % 8 > 0 { 1 } else { 0 };
-    println!("\n");
-    for _ in 0..bytes_need {
-        let mut pack: u8 = 0;
-        for j in (0..8).rev() {
-            // println!("j: {}", j);
-            // println!("pack {:08b}", pack);
-            if let Some(value) = codes_iter.next() {
-                // println!("value: {}", value);
-                let mut byte = value.to_string().parse::<u8>().unwrap();
-                byte = byte << j;
-                // println!("c: {:08b}", c);
-                pack |= byte;
-                //println!("pack: {:08b}", pack);
-            } else {
-                *padding_bits = 8 - j as u8;
-                break;
-            }
+    loop {
+        let bytes_read = file.read(&mut buffer).unwrap();
+        if bytes_read == 0 {
+            break;
         }
-        bytes.push(pack);
-    }
 
-    bytes
+        let chunk = &buffer[..bytes_read];
+
+        match std::str::from_utf8(chunk) {
+            Ok(text) => {
+                let s: Vec<_> = text.split("").collect();
+                for char in s {
+                    if char.len() == 0 {
+                        continue;
+                    }
+
+                    let value = char.to_string();
+                    let code = prefixes.get(&value).unwrap();
+                    code.chars().for_each(|c| {
+                        curr_byte |= c.to_string().parse::<u8>().unwrap() << curr_count;
+                        if curr_count == 0 {
+                            output_file
+                                .write(&[curr_byte])
+                                .expect("Unable to write file");
+                            curr_byte = 0x0;
+                            curr_count = 7;
+                        } else {
+                            curr_count -= 1;
+                        }
+                    });
+                    // println!("{:}", code);
+                    // Verify if code is more or less than 8 bits, if it is more than 8 bits, we need to split it into multiple bytes if not, we must look for the next character and append it to the current byte until we have 8 bits, then we can push it to the output vector.
+                }
+            }
+            Err(_) => println!("Error while reading chunk as UTF-8 string"),
+        }
+    }
 }
