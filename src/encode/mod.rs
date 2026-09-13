@@ -2,7 +2,6 @@ mod data_str;
 mod huffman;
 mod utils;
 
-use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::{collections::HashMap, io::Seek};
@@ -12,7 +11,7 @@ use crate::encode::{
     huffman::{build_encode_tree_ouput, huffman_codes},
 };
 
-pub fn compress(file: &mut File) -> Result<(), std::io::Error> {
+pub fn compress(file: &mut File, destination_file: &mut File) -> Result<(), std::io::Error> {
     let mut hash_map: HashMap<String, usize> = HashMap::new();
 
     let mut buffer: [u8; 500_024] = [0; 500_024];
@@ -76,8 +75,9 @@ pub fn compress(file: &mut File) -> Result<(), std::io::Error> {
     let mut result: Vec<u8> = Vec::from([tree_encoded.len() as u8, 0x0, 0x0]);
     result.extend(tree_encoded);
 
-    let mut output_file = fs::File::create_new("./output2").unwrap();
-    output_file.write(&result).expect("Unable to write file");
+    destination_file
+        .write(&result)
+        .expect("Unable to write file");
 
     drop(result);
 
@@ -103,7 +103,7 @@ pub fn compress(file: &mut File) -> Result<(), std::io::Error> {
                     code.chars().for_each(|c| {
                         curr_byte |= c.to_string().parse::<u8>().unwrap() << curr_count;
                         if curr_count == 0 {
-                            output_file
+                            destination_file
                                 .write(&[curr_byte])
                                 .expect("Unable to write encoded data into destination file");
                             curr_byte = 0x0;
