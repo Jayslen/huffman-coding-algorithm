@@ -5,7 +5,6 @@ mod utils;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::unix::fs::MetadataExt;
 use std::{collections::HashMap, io::Seek};
 
 use crate::encode::{
@@ -13,26 +12,20 @@ use crate::encode::{
     huffman::{build_encode_tree_ouput, huffman_codes},
 };
 
-pub fn compress(file_path: &str, file: &mut File) {
+pub fn compress(file: &mut File) -> Result<(), std::io::Error> {
     let mut hash_map: HashMap<String, usize> = HashMap::new();
 
     let mut buffer: [u8; 500_024] = [0; 500_024];
 
-    // let size = fs::metadata(file_path).unwrap().size();
-    // let mut total: usize = 0;
+    println!("\n\nEncoding file...");
 
     loop {
-        let bytes_read = file.read(&mut buffer).unwrap();
+        let bytes_read = file.read(&mut buffer)?;
         if bytes_read == 0 {
             break;
         }
 
-        // total += bytes_read;
         let chunk = &buffer[..bytes_read];
-
-        // print!("\rRead {} of {:?}", total, size);
-
-        // std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         match std::str::from_utf8(chunk) {
             Ok(text) => {
@@ -49,7 +42,12 @@ pub fn compress(file_path: &str, file: &mut File) {
                     }
                 }
             }
-            Err(_) => println!("Error while reading chunk as UTF-8 string"),
+            Err(err) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Error while reading a chunk as UTF-8 string: {}", err),
+                ));
+            }
         }
     }
 
@@ -72,8 +70,6 @@ pub fn compress(file_path: &str, file: &mut File) {
     file.seek(std::io::SeekFrom::Start(0))
         .expect("Unable to seek file");
 
-    println!("\n\nEncoding file...");
-
     let mut curr_byte: u8 = 0x0;
     let mut curr_count: u8 = 7;
 
@@ -86,7 +82,7 @@ pub fn compress(file_path: &str, file: &mut File) {
     drop(result);
 
     loop {
-        let bytes_read = file.read(&mut buffer).unwrap();
+        let bytes_read = file.read(&mut buffer)?;
         if bytes_read == 0 {
             break;
         }
@@ -103,12 +99,13 @@ pub fn compress(file_path: &str, file: &mut File) {
 
                     let value = char.to_string();
                     let code = prefixes.get(&value).unwrap();
+
                     code.chars().for_each(|c| {
                         curr_byte |= c.to_string().parse::<u8>().unwrap() << curr_count;
                         if curr_count == 0 {
                             output_file
                                 .write(&[curr_byte])
-                                .expect("Unable to write file");
+                                .expect("Unable to write encoded data into destination file");
                             curr_byte = 0x0;
                             curr_count = 7;
                         } else {
@@ -119,7 +116,14 @@ pub fn compress(file_path: &str, file: &mut File) {
                     // Verify if code is more or less than 8 bits, if it is more than 8 bits, we need to split it into multiple bytes if not, we must look for the next character and append it to the current byte until we have 8 bits, then we can push it to the output vector.
                 }
             }
-            Err(_) => println!("Error while reading chunk as UTF-8 string"),
+
+            Err(err) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Error while reading a chunk as UTF-8 string: {}", err),
+                ));
+            }
         }
     }
+    Ok(())
 }
