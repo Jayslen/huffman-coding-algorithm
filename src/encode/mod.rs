@@ -72,7 +72,7 @@ pub fn compress(file: &mut File, destination_file: &mut File) -> Result<(), std:
     let mut curr_byte: u8 = 0x0;
     let mut curr_count: u8 = 7;
 
-    let mut result: Vec<u8> = Vec::from([tree_encoded.len() as u8, 0x0, 0x0]);
+    let mut result: Vec<u8> = Vec::from([0x0A, tree_encoded.len() as u8]);
     result.extend(tree_encoded);
 
     destination_file

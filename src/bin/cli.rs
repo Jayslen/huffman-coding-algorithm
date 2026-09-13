@@ -54,7 +54,6 @@ impl CLI {
 
 fn main() {
     let cli = CLI::new(env::args());
-    println!("{:?}", std::env::current_dir());
     match cli.pattern {
         Action::Compress => {
             let mut file = fs::File::open(&cli.file_path).unwrap();
@@ -65,7 +64,10 @@ fn main() {
                     "File compressed successfully to '{}'",
                     destination.display()
                 ),
-                Err(err) => eprintln!("Error during compression: {}", err),
+                Err(err) => {
+                    eprintln!("Error during compression: {}", err);
+                    remove_file(&destination);
+                }
             }
         }
         Action::Decompress => {
@@ -73,7 +75,10 @@ fn main() {
             let (mut destination_file, path) = create_destination_file(&cli);
             match decode::uncompress(&mut file, &mut destination_file) {
                 Ok(_) => println!("File decompressed successfully to '{}'", path.display()),
-                Err(err) => eprintln!("Error during decompression: {}", err),
+                Err(err) => {
+                    eprintln!("Error during decompression: {}", err);
+                    remove_file(&path);
+                }
             }
             // Decode module not ready
         }
@@ -81,6 +86,10 @@ fn main() {
             println!("Invalid action. Use 'compress' or 'decompress'.");
         }
     }
+}
+
+fn remove_file(path: &std::path::PathBuf) {
+    fs::remove_file(path).unwrap();
 }
 
 fn create_destination_file(cli: &CLI) -> (File, std::path::PathBuf) {

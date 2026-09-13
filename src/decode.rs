@@ -9,10 +9,17 @@ struct LeafNode {
 }
 
 pub fn uncompress(file: &mut File, destination_file: &mut File) -> Result<(), std::io::Error> {
-    let mut header: [u8; 3] = [0; 3];
+    let mut header: [u8; 2] = [0; 2];
     let _ = file.read_exact(&mut header)?;
 
-    let mut tree: Vec<u8> = vec![0; header[0] as usize];
+    if header[0] != 0x0A {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "File was not compressed with this tool",
+        ));
+    }
+
+    let mut tree: Vec<u8> = vec![0; header[1] as usize];
     let _ = file.read_exact(&mut tree)?;
 
     let mut index: usize = 0;
