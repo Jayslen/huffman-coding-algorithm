@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 
 #[derive(Debug, Clone)]
 struct LeafNode {
-    pub char: char,
+    pub char: Option<char>,
     pub left: Option<Box<LeafNode>>,
     pub right: Option<Box<LeafNode>>,
 }
@@ -41,8 +41,8 @@ pub fn uncompress(file: &mut File, destination_file: &mut File) -> Result<(), st
 
             for cursor in (0..8).rev() {
                 let bit = curr_byte >> cursor & 0x01;
-                if current_leaf.char != '#' {
-                    destination_file.write_all(&[current_leaf.char as u8])?;
+                if let Some(c) = current_leaf.char {
+                    destination_file.write_all(&[c as u8])?;
                     current_leaf = &root;
                 }
 
@@ -64,7 +64,7 @@ fn build_tree(bytes: &[u8], index: &mut usize) -> LeafNode {
     if byte != 0 {
         // Leaf
         return LeafNode {
-            char: (byte as char),
+            char: Some(byte as char),
             left: None,
             right: None,
         };
@@ -75,7 +75,7 @@ fn build_tree(bytes: &[u8], index: &mut usize) -> LeafNode {
     let right = build_tree(bytes, index);
 
     LeafNode {
-        char: '#',
+        char: None,
         left: Some(Box::new(left)),
         right: Some(Box::new(right)),
     }
